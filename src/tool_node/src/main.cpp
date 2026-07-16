@@ -132,8 +132,11 @@ void loop(){
   }
   else  // Current sensor input is Lo, indicating the tool has been turned off
   {
-    tool.report_off(espclient);
-    gateMotor.close(closeTime, GATE_DELAY); 
+    
+    if (!tool.is_last_gate_open()) {
+      tool.report_off(espclient);
+      gateMotor.close(closeTime, GATE_DELAY);
+    }
   }
 
   bool isOpening = gateMotor.isOpening();
@@ -155,10 +158,5 @@ void ask_anyone_open(){
 
 void answer_anyone_open(){
   String msg = String(TOOL_NAME) + " is open";
-  espclient.publish("tools/dust_collection", msg);
-}
-
-void announce_last_open(){
-  String msg = String("I'm the last gate open.");
   espclient.publish("tools/dust_collection", msg);
 }
