@@ -72,6 +72,10 @@ void onStatusMessageReceived(const String& message) {
     }
     delay(1000); // debounce
 }
+
+void onDustCollectionMessageReceived(const String& message) {
+  tool.handle_dust_collection_message(message);
+}
     
     
 void onConnectionEstablished()
@@ -79,6 +83,7 @@ void onConnectionEstablished()
     String msg = String(TOOL_NAME) + " Connected";
     espclient.publish("tools/dust_collection", msg);
     espclient.subscribe("tools/dust_collection/status", onStatusMessageReceived);
+  espclient.subscribe("tools/dust_collection", onDustCollectionMessageReceived);
 }
 
 
@@ -118,17 +123,27 @@ void loop(){
   espclient.loop();
   led2.heartbeat();
   currSense = digitalRead(toolCurrSensePin);
+  bool wasOpening = gateMotor.isOpening();
 
   if (currSense == HIGH) // Current sense input is High, indicating current >= 1.5 A
   {
     tool.report_on(espclient);
     gateMotor.open(openTime);
-    led1.on();
   }
   else  // Current sensor input is Lo, indicating the tool has been turned off
   {
     tool.report_off(espclient);
     gateMotor.close(closeTime, GATE_DELAY); 
+  }
+
+  bool isOpening = gateMotor.isOpening();
+  if (!wasOpening && isOpening) {
+    tool.declare_last_gate_open(espclient);
+  }
+
+  if (gateMotor.isMoving()) {
+    led1.on();
+  } else {
     led1.off();
   }
 }
@@ -140,5 +155,10 @@ void ask_anyone_open(){
 
 void answer_anyone_open(){
   String msg = String(TOOL_NAME) + " is open";
+  espclient.publish("tools/dust_collection", msg);
+}
+
+void announce_last_open(){
+  String msg = String("I'm the last gate open.");
   espclient.publish("tools/dust_collection", msg);
 }

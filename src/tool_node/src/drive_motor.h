@@ -23,6 +23,8 @@ class DriveMotor{
     void open(int duration);
     void stop();
     void reportCurrent();
+    bool isMoving();
+    bool isOpening();
   private:
     bool _isSetup;
     ledc_channel_t _pwmChannel;
@@ -41,6 +43,7 @@ class DriveMotor{
     const int _stallADC = 4095;
     unsigned long _stallStartMs = 0;
     const unsigned long _stallTimeoutMs = 5000;
+    bool _isMoving = false;
 };
 
 #endif

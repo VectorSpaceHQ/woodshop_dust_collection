@@ -38,3 +38,26 @@ void Tool::report_on(EspMQTTClient &clt){
         Serial.println(tool_state);
         return tool_state;
     }
+
+    void Tool::declare_last_gate_open(EspMQTTClient &clt){
+        _last_gate_open = true;
+        String gate_message = name + " is the last gate open";
+        clt.publish("tools/dust_collection", gate_message);
+    }
+
+    void Tool::handle_dust_collection_message(const String &incomingMessage){
+        const String marker = " is the last gate open";
+        int markerIndex = incomingMessage.indexOf(marker);
+        if (markerIndex == -1) {
+            return;
+        }
+
+        String declaringTool = incomingMessage.substring(0, markerIndex);
+        if (declaringTool != name) {
+            _last_gate_open = false;
+        }
+    }
+
+    bool Tool::is_last_gate_open(){
+        return _last_gate_open;
+    }

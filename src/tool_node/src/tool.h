@@ -19,4 +19,9 @@ class Tool{
         void set_off();
         void measure_state();
         bool report_state();
+        void declare_last_gate_open(EspMQTTClient &clt);
+        void handle_dust_collection_message(const String &incomingMessage);
+        bool is_last_gate_open();
+    private:
+        bool _last_gate_open = false;
 };
