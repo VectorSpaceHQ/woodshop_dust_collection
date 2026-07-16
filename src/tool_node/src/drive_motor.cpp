@@ -61,7 +61,6 @@ void DriveMotor::close(int duration, int initialDelay){
     }
     _lastcommand = 0;
 
-
     if (_time_since_called < initialDelay) {
         // not yet ready to close
         _isMoving = false;
@@ -69,6 +68,7 @@ void DriveMotor::close(int duration, int initialDelay){
     }
 
     int activeMotionTime = _time_since_called - initialDelay;
+    Serial.println("Closing gate, active motion time: " + String(activeMotionTime) + " seconds");
 
     if (activeMotionTime < duration) {
         // Apply closing signal for duration seconds.
@@ -127,6 +127,7 @@ void DriveMotor::open(int duration){
         int current = analogRead(_sensePin);
         if (current >= _stallADC) {
             if (_stallStartMs == 0) {
+                //Serial.println("possible stall detected during open, starting stall timer");
                 _stallStartMs = millis();
             } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
                 Serial.println("Stall detected during open, stopping motor");
@@ -145,12 +146,14 @@ void DriveMotor::open(int duration){
 
 void DriveMotor::stop(){
     _isMoving = false;
-    digitalWrite(_pinA, 0);
-    digitalWrite(_pinB, 0);
+    
     _stallStartMs = 0;
     _lastcommand = 2;
 
-    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 32767) );
+    // coast
+    digitalWrite(_pinA, 0);
+    digitalWrite(_pinB, 0);
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0) );
     ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
 }
 

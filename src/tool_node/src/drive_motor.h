@@ -40,7 +40,7 @@ class DriveMotor{
     bool _invert;
     int _time_since_called = 0;
     int _start_time = 0;
-    const int _stallADC = 4095;
+    const int _stallADC = 4000;
     unsigned long _stallStartMs = 0;
     const unsigned long _stallTimeoutMs = 5000;
     bool _isMoving = false;

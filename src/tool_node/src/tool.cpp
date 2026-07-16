@@ -59,5 +59,6 @@ void Tool::report_on(EspMQTTClient &clt){
     }
 
     bool Tool::is_last_gate_open(){
-        return _last_gate_open;
+        //return _last_gate_open;
+        return false; // testing
     }

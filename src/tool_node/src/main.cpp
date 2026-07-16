@@ -127,17 +127,25 @@ void loop(){
 
   if (currSense == HIGH) // Current sense input is High, indicating current >= 1.5 A
   {
-    tool.report_on(espclient);
+    if (!tool.tool_state) {
+      tool.report_on(espclient);
+    }
     gateMotor.open(openTime);
   }
-  else  // Current sensor input is Lo, indicating the tool has been turned off
+  else if (!tool.is_last_gate_open())  // Current sensor input is Lo, indicating the tool has been turned off
   {
-    
-    if (!tool.is_last_gate_open()) {
-      tool.report_off(espclient);
+      //Serial.println("Tool is off, consider closing gate");
+      if (tool.tool_state) {
+        tool.report_off(espclient);
+      }
       gateMotor.close(closeTime, GATE_DELAY);
     }
-  }
+  else
+    {
+      Serial.println("Tool is off, but I'm last, so not closing gate");
+      gateMotor.stop();
+    }
+  
 
   bool isOpening = gateMotor.isOpening();
   if (!wasOpening && isOpening) {
