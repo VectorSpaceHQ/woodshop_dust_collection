@@ -1,27 +1,19 @@
-#include "EspMQTTClient.h"
+#include "tool.h"
 
-class Tool{
-public:
-    int PIN;
-    String name;
-    bool tool_state = false;
-    bool old_tool_state = false;
-    String message;
+Tool::Tool(){
+    // Constructor
+}
 
-    unsigned long currentTime;
-    unsigned long cloopTime = millis();
-
-    void set_pin(int pin){
+void Tool::set_pin(int pin){
         PIN = pin;
         pinMode(pin, INPUT_PULLUP);
     }
 
-    void turn_on(EspMQTTClient &clt){
+
+void Tool::report_on(EspMQTTClient &clt){
         tool_state = true;
-        String tool_state_str = "OFF";
-        if (tool_state == true){
-          tool_state_str = "ON";
-        }
+        String tool_state_str = "ON";
+
         message = name + ", " + tool_state_str;
         if (tool_state != old_tool_state){
             Serial.println("tool state has changed");
@@ -30,12 +22,10 @@ public:
         }
     }
     
-    void turn_off(EspMQTTClient &clt){
+    void Tool::report_off(EspMQTTClient &clt){
         tool_state = false;
         String tool_state_str = "OFF";
-        if (tool_state == true){
-          tool_state_str = "ON";
-        }
+
         message = name + ", " + tool_state_str;
         if (tool_state != old_tool_state){
             Serial.println("tool state has changed");
@@ -44,8 +34,7 @@ public:
         }
     }
 
-    bool get_state(){
+    bool Tool::report_state(){
         Serial.println(tool_state);
         return tool_state;
     }
-};
