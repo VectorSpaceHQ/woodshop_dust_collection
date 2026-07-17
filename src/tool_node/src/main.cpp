@@ -15,10 +15,8 @@
 
 
 #include <Arduino.h>
-#include "tool.h"
 #include "EspMQTTClient.h"
-#include "drive_motor.h"
-#include "leds.h"
+#include "tool_node.h"
 
 #define TOOL_NAME "Router Table"
 
@@ -32,49 +30,14 @@ EspMQTTClient espclient(
 
 #define TIMER_INTERRUPT_DEBUG       1
 
-// Initializations for this application
-
-// Turn-off timer values, in 100 msec "ticks"
-#define   GATE_DELAY    120 //  delay in seconds to close gate after tool turns off
-
-bool toolOn = false;
-bool gateOpen = false;
-int gatePosition = 0;
-int gateCounter = 0;
-int vacCounter = 0;
-int vacCntrl = 0;
-int currSense = 0;
-int openTime = 60; //seconds
-int closeTime = 60; //seconds
-const int toolCurrSensePin = D3;
-const int vacCntrlPin = D4;
-const int led1Pin = D6;
-const int led2Pin = D8;
-const int gateMotorCurrSensePin = D2;
-DriveMotor gateMotor;
-Tool tool;
-LED led2;
-LED led1;
-
+ToolNode toolNode(espclient, TOOL_NAME);
 
 void onStatusMessageReceived(const String& message) {
-  if (message.indexOf("REPORT STATUS") != -1){
-      String msg;
-      if (tool.tool_state == true){
-        msg = tool.name + ", Current state: ON"; 
-        espclient.publish("tools/dust_collection/status", msg);
-      }
-      else{
-        msg = tool.name + ", Current state: OFF"; 
-        espclient.publish("tools/dust_collection/status", msg);
-      }
-      return;
-    }
-    delay(1000); // debounce
+  toolNode.onStatusMessageReceived(message);
 }
 
 void onDustCollectionMessageReceived(const String& message) {
-  tool.handle_dust_collection_message(message);
+  toolNode.onDustCollectionMessageReceived(message);
 }
     
     
@@ -89,74 +52,12 @@ void onConnectionEstablished()
 
 void setup()
 {
-  tool.name = TOOL_NAME;
-  bool startupOK = true;
-
-  Serial.begin(115200);
-  while (!Serial);
-
-  delay(200);
-
-  Serial.print("\nStarting Current Sensor Assembly");
-  delay(200);
-
-  // Setup Digital I/O pins
-  pinMode(toolCurrSensePin, INPUT_PULLUP);  // Use the internal pull-up, so 3.3V doesn't have to be routed on the board.
-  pinMode(vacCntrlPin, OUTPUT);
-  pinMode(gateMotorCurrSensePin, INPUT_PULLUP);
-
-
-  startupOK &= gateMotor.init(D0, D1, LEDC_CHANNEL_2, D7, gateMotorCurrSensePin, false);
-
-  // Optional functionalities of EspMQTTClient
-  //espclient.enableDebuggingMessages(); // Enable debugging messages sent to serial output
-  espclient.enableOTA(); // Enable OTA (Over The Air) updates. Password defaults to MQTTPassword. Port is the default OTA port. Can be overridden with enableOTA("password", port).
-  
-  led2.init(led2Pin);
-  led1.init(led1Pin);
-  led1.toggle();
-  delay(2000); // time for wifi
-
+  toolNode.setup();
 } // End of setup
 
 void loop(){
   espclient.loop();
-  led2.heartbeat();
-  currSense = digitalRead(toolCurrSensePin);
-  bool wasOpening = gateMotor.isOpening();
-
-  if (currSense == HIGH) // Current sense input is High, indicating current >= 1.5 A
-  {
-    if (!tool.tool_state) {
-      tool.report_on(espclient);
-    }
-    gateMotor.open(openTime);
-  }
-  else if (!tool.is_last_gate_open())  // Current sensor input is Lo, indicating the tool has been turned off
-  {
-      //Serial.println("Tool is off, consider closing gate");
-      if (tool.tool_state) {
-        tool.report_off(espclient);
-      }
-      gateMotor.close(closeTime, GATE_DELAY);
-    }
-  else
-    {
-      Serial.println("Tool is off, but I'm last, so not closing gate");
-      gateMotor.stop();
-    }
-  
-
-  bool isOpening = gateMotor.isOpening();
-  if (!wasOpening && isOpening) {
-    tool.declare_last_gate_open(espclient);
-  }
-
-  if (gateMotor.isMoving()) {
-    led1.on();
-  } else {
-    led1.off();
-  }
+  toolNode.loop();
 }
 
 

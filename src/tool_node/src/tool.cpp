@@ -11,7 +11,7 @@ void Tool::set_pin(int pin){
 
 
 void Tool::report_on(EspMQTTClient &clt){
-        tool_state = true;
+    tool_state = true;
         String tool_state_str = "ON";
 
         message = name + ", " + tool_state_str;

@@ -42,7 +42,7 @@ class DriveMotor{
     int _start_time = 0;
     const int _stallADC = 4000;
     unsigned long _stallStartMs = 0;
-    const unsigned long _stallTimeoutMs = 5000;
+    const unsigned long _stallTimeoutMs = 2000;
     bool _isMoving = false;
 };
 
