@@ -53,7 +53,7 @@ void onConnectionEstablished()
 void setup()
 {
   toolNode.setup();
-} // End of setup
+}
 
 void loop(){
   espclient.loop();

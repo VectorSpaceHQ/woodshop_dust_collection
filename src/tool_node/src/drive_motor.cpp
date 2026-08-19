@@ -88,6 +88,7 @@ void DriveMotor::close(int duration, int initialDelay){
                 _stallStartMs = millis();
             } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
                 Serial.println("Stall detected during close, stopping motor");
+                this->open(0.5);
                 this->stop();
                 return;
             }
