@@ -26,7 +26,7 @@ void ToolNode::setup() {
 
   _led2.init(LED2_PIN);
   _led1.init(LED1_PIN);
-  _led1.toggle();
+  _led1.off();
   delay(2000); // time for wifi
 
   (void)startupOK;
@@ -34,6 +34,8 @@ void ToolNode::setup() {
 
 void ToolNode::loop() {
   _led2.heartbeat();
+  _gateMotor.stallProtect();
+
 
   int currSense = digitalRead(TOOL_CURR_SENSE_PIN);
   bool wasOpening = _gateMotor.isOpening();
@@ -43,20 +45,20 @@ void ToolNode::loop() {
     if (!_tool.tool_state) {
       _tool.report_on(_mqttClient);
     }
-    _gateMotor.open(OPEN_TIME);
+    _gateMotor.consider_open(OPEN_TIME);
   }
   else if (!_tool.is_last_gate_open())
   {
-      if (_tool.tool_state) {
-        _tool.report_off(_mqttClient);
-      }
-      _gateMotor.close(CLOSE_TIME, GATE_DELAY);
+    if (_tool.tool_state) {
+      _tool.report_off(_mqttClient);
     }
+    _gateMotor.consider_close(CLOSE_TIME, GATE_DELAY);
+  }
   else
-    {
-      Serial.println("Tool is off, but I'm last, so not closing gate");
-      _gateMotor.stop();
-    }
+  {
+    Serial.println("Tool is off, but I'm last, so not closing gate");
+    _gateMotor.stop();
+  }
 
   bool isOpening = _gateMotor.isOpening();
   if (!wasOpening && isOpening) {

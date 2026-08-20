@@ -21,7 +21,7 @@ class ToolNode {
     static const int LED1_PIN = D6;
     static const int LED2_PIN = D8;
     static const int GATE_MOTOR_CURR_SENSE_PIN = D2;
-    static const int OPEN_TIME = 55;
+    static const int OPEN_TIME = 20;
     static const int CLOSE_TIME = 60;
     static const int GATE_DELAY = 120;
 

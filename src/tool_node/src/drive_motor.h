@@ -19,12 +19,17 @@ class DriveMotor{
               int pwm, int sense, bool invert = false);
     void loop(int speed, bool enable = true);
     void wake();
-    void close(int duration, int initialDelay = 0);
-    void open(int duration);
-    void stop();
+    void consider_close(int duration, int initialDelay = 0);
+    void consider_open(int duration, int initialDelay = 0);
     void reportCurrent();
     bool isMoving();
     bool isOpening();
+    int getState();
+    void stallProtect();
+        void stop();
+
+
+    
   private:
     bool _isSetup;
     ledc_channel_t _pwmChannel;
@@ -44,6 +49,10 @@ class DriveMotor{
     unsigned long _stallStartMs = 0;
     const unsigned long _stallTimeoutMs = 500;
     bool _isMoving = false;
+
+    void open();
+    void close();
+    void setState(int state);
 };
 
 #endif

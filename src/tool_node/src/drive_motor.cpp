@@ -47,54 +47,33 @@ bool DriveMotor::init(int PinA, int PinB,
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel1));
 
     this->wake(); // wake up motor driver
+    this->stop(); // ensure no stale motion flag or output state
 
     return _isSetup;
 }
 
-void DriveMotor::close(int duration, int initialDelay){
-    if (_lastcommand != 0) {
+void DriveMotor::consider_close(int duration, int initialDelay){
+    if (this->getState() != 0) {
         _start_time = millis() / 1000;
         _time_since_called = 0;
+        this->setState(0);
     }
     else {
         _time_since_called = (millis() / 1000) - _start_time;
     }
-    _lastcommand = 0;
 
     if (_time_since_called < initialDelay) {
         // not yet ready to close
         _isMoving = false;
+        this->setState(2);
         return;
     }
 
     int activeMotionTime = _time_since_called - initialDelay;
-    Serial.println("Closing gate, active motion time: " + String(activeMotionTime) + " seconds");
 
     if (activeMotionTime < duration) {
-        // Apply closing signal for duration seconds.
-        _isMoving = true;
-        Serial.println("Closing gate");
-        digitalWrite(_pinA, 0);
-        digitalWrite(_pinB, 1);
-        digitalWrite(_sel0, 0);
-
-        ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 32767) );
-        ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
-        
-        // protect against stall condition
-        int current = analogRead(_sensePin);
-        if (current >= _stallADC) {
-            if (_stallStartMs == 0) {
-                _stallStartMs = millis();
-            } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
-                Serial.println("Stall detected during close, stopping motor");
-                this->open(0.5);
-                this->stop();
-                return;
-            }
-        } else {
-            _stallStartMs = 0;
-        }
+        this->close();
+        this->stallProtect();
     }
     else {
         // duration has elapsed, stop the motor
@@ -102,42 +81,35 @@ void DriveMotor::close(int duration, int initialDelay){
     }
 }
 
-void DriveMotor::open(int duration){
-    // duration in seconds
 
-    if (_lastcommand != 1) {
-        Serial.println("Opening gate");
+void DriveMotor::close(){
+        _isMoving = true;
+        Serial.println("Closing gate");
+        this->setState(0);
+        digitalWrite(_pinA, 0);
+        digitalWrite(_pinB, 1);
+        digitalWrite(_sel0, 0);
+
+        ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
+        ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
+}
+
+void DriveMotor::consider_open(int duration, int initialDelay){
+    // duration in seconds
+    //
+    if (this->getState() != 1) {
+        // motor is not already opening, so reset the timer
+        Serial.println("Open requested, starting timer");
         _start_time = millis() / 1000;
         _time_since_called = 0;
+        this->setState(1);
     }
     else {
         _time_since_called = (millis() / 1000) - _start_time;
     }
-    _lastcommand = 1; // open
 
     if (_time_since_called < duration) {
-        _isMoving = true;
-        
-        digitalWrite(_pinA, 1);
-        digitalWrite(_pinB, 0);
-        digitalWrite(_sel0, 1);
-
-        ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, -32767) );
-        ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
-
-        int current = analogRead(_sensePin);
-        if (current >= _stallADC) {
-            if (_stallStartMs == 0) {
-                //Serial.println("possible stall detected during open, starting stall timer");
-                _stallStartMs = millis();
-            } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
-                Serial.println("Stall detected during open, stopping motor");
-                this->stop();
-                return;
-            }
-        } else {
-            _stallStartMs = 0;
-        }
+        this->open();
     }
     else {
         this->stop();
@@ -145,7 +117,21 @@ void DriveMotor::open(int duration){
     
 }
 
+void DriveMotor::open(){
+    Serial.println("Opening gate");
+    _isMoving = true;
+    this->setState(1);
+    digitalWrite(_pinA, 1);
+    digitalWrite(_pinB, 0);
+    digitalWrite(_sel0, 1);
+
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
+    ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
+}
+
 void DriveMotor::stop(){
+    Serial.println("Stopping gate");
+    this->setState(2);
     _isMoving = false;
     
     _stallStartMs = 0;
@@ -156,6 +142,22 @@ void DriveMotor::stop(){
     digitalWrite(_pinB, 0);
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0) );
     ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
+}
+
+void DriveMotor::stallProtect(){
+    int current = analogRead(_sensePin);
+    if (current >= _stallADC) {
+        if (_stallStartMs == 0) {
+            _stallStartMs = millis();
+        } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
+            Serial.println("Stall detected during close, stopping motor");
+            this->open();
+            this->stop();
+            return;
+        }
+    } else {
+        _stallStartMs = 0;
+    }
 }
 
 void DriveMotor::reportCurrent(){
@@ -169,7 +171,7 @@ bool DriveMotor::isMoving(){
 }
 
 bool DriveMotor::isOpening(){
-    return _isMoving && (_lastcommand == 1);
+    return _isMoving && (this->getState() == 1);
 }
 
 
@@ -178,6 +180,8 @@ void DriveMotor::wake(){
     // Toggle INA from 0 to 1
     // Toggle PWM from 0 to 1 with a 20us delay.
     pinMode(_sel0, OUTPUT);
+    _isMoving = false;
+    _lastcommand = 2;
 
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0) );
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
