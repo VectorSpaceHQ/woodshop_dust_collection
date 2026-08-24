@@ -7,6 +7,34 @@ DriveMotor::DriveMotor(){
   _isSetup = false;
 }
 
+void DriveMotor::loop(int speed, bool enable) {
+    if (!enable) {
+        this->stop();
+        return;
+    }
+
+    if (speed > 0) {
+        this->consider_open(abs(speed));
+    } else if (speed < 0) {
+        this->consider_close(abs(speed));
+    } else {
+        this->stop();
+    }
+}
+
+int DriveMotor::getState() {
+    return _lastcommand;
+}
+
+void DriveMotor::setState(int state) {
+    if (state < 0) {
+        state = 0;
+    }
+    if (state > 3) {
+        state = 3;
+    }
+    _lastcommand = state;
+}
 
 bool DriveMotor::init(int PinA, int PinB, 
                 ledc_channel_t channelA,
@@ -53,6 +81,7 @@ bool DriveMotor::init(int PinA, int PinB,
 }
 
 void DriveMotor::consider_close(int duration, int initialDelay){
+  
     if (this->getState() != 0) {
         _start_time = millis() / 1000;
         _time_since_called = 0;
@@ -83,6 +112,10 @@ void DriveMotor::consider_close(int duration, int initialDelay){
 
 
 void DriveMotor::close(){
+    if (this->getState() == 0 && _isMoving) {
+        // Already closing; do not restart the close cycle on every loop.
+        return;
+    }
         _isMoving = true;
         Serial.println("Closing gate");
         this->setState(0);
@@ -118,6 +151,11 @@ void DriveMotor::consider_open(int duration, int initialDelay){
 }
 
 void DriveMotor::open(){
+    if (this->getState() == 1 && _isMoving) {
+        // Already opening; do not restart the open cycle on every loop.
+        return;
+    }
+
     Serial.println("Opening gate");
     _isMoving = true;
     this->setState(1);
@@ -130,6 +168,11 @@ void DriveMotor::open(){
 }
 
 void DriveMotor::stop(){
+    if (this->getState() == 2) {
+        // Already stopped; do not restart the stop cycle on every loop.
+        return;
+    }
+    
     Serial.println("Stopping gate");
     this->setState(2);
     _isMoving = false;

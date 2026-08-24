@@ -30,6 +30,8 @@ void ToolNode::setup() {
   delay(2000); // time for wifi
 
   (void)startupOK;
+
+  _gateMotor.consider_close(20,0);
 }
 
 void ToolNode::loop() {
@@ -52,7 +54,12 @@ void ToolNode::loop() {
     if (_tool.tool_state) {
       _tool.report_off(_mqttClient);
     }
-    _gateMotor.consider_close(CLOSE_TIME, GATE_DELAY);
+
+    if (_gateMotor.isOpening() || _gateMotor.isMoving()) {
+      _gateMotor.consider_open(OPEN_TIME);
+    } else {
+      _gateMotor.consider_close(CLOSE_TIME, GATE_DELAY);
+    }
   }
   else
   {
