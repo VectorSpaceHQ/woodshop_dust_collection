@@ -4,6 +4,10 @@
 #include "Arduino.h"
 #include "driver/ledc.h"
 #include "esp_err.h"
+#include <stdint.h>
+#include <vector>
+#include <numeric>
+
 
 #define DEFAULT_DRIVE_PWM_FREQUENCY 100 //very high frequencies might blow up the RZ7886 driver chip. 5k is def bad, 1k is kinda bad.
 #define DEFAULT_DRIVE_PWM_RESOLUTION LEDC_TIMER_8_BIT
@@ -41,18 +45,31 @@ class DriveMotor{
     int _sensePin;
     int _pinA;
     int _pinB;
-    int _lastcommand = 2; //0 = close, 1 = open, 2 = brake, 3 = coast
+    int _lastcommand = 4; //0 = close, 1 = open, 2 = brake, 3 = coast
     bool _invert;
     int _time_since_called = 0;
     int _start_time = 0;
-    const int _stallADC = 4000;
-    unsigned long _stallStartMs = 0;
-    const unsigned long _stallTimeoutMs = 500;
+
+    static const int STALL_WINDOW_SIZE = 50;
+    const int _stallADC = 4090;
+    static const unsigned long MAX_CONTINUOUS_OPEN_MS = 45UL * 1000UL;
+    static const unsigned long MAX_CONTINUOUS_CLOSE_MS = 45UL * 1000UL;
+    static const unsigned long CLOSE_LOCKOUT_MS = 5UL * 60UL * 1000UL;
+    std::vector<int> _stallSamples;
+    int _stallSampleIndex = 0;
+    int _stallSampleCount = 0;
+    uint64_t _stallSampleSum = 0;
     bool _isMoving = false;
+    bool _fullyOpen = false;
+    bool _fullyClosed = false;
+    unsigned long _openStartedAtMs = 0;
+    unsigned long _closeStartedAtMs = 0;
+    unsigned long _closeAllowedAfterMs = 0;
 
     void open();
     void close();
     void setState(int state);
+    void resetStallSamples();
 };
 
 #endif

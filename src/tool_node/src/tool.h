@@ -5,7 +5,7 @@ class Tool{
         Tool();
         int PIN;
         String name;
-        bool tool_state = false;
+        bool tool_on = false;
         bool old_tool_state = false;
         String message;
 
