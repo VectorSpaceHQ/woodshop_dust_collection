@@ -24,6 +24,7 @@ class ToolNode {
     static const int OPEN_TIME = 55;
     static const int CLOSE_TIME = 60;
     static const int GATE_DELAY = 120;
+    static const unsigned long TOOL_DEBOUNCE_MS = 250;
 
     EspMQTTClient& _mqttClient;
     const char* _toolName;
@@ -31,6 +32,10 @@ class ToolNode {
     DriveMotor _gateMotor;
     LED _led2; // heartbeat
     LED _led1; // gate open indicator
+
+    int _rawToolSense = LOW;
+    int _toolSense = LOW; // debounced
+    unsigned long _rawToolSenseChangeMs = 0;
 };
 
 #endif

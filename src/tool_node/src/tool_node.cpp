@@ -35,10 +35,17 @@ void ToolNode::setup() {
 void ToolNode::loop() {
   _led2.heartbeat();
 
-  int currSense = digitalRead(TOOL_CURR_SENSE_PIN);
+  // only accept a new tool state once the input has held steady
+  int rawSense = digitalRead(TOOL_CURR_SENSE_PIN);
+  if (rawSense != _rawToolSense) {
+    _rawToolSense = rawSense;
+    _rawToolSenseChangeMs = millis();
+  } else if (millis() - _rawToolSenseChangeMs >= TOOL_DEBOUNCE_MS) {
+    _toolSense = rawSense;
+  }
   bool wasOpening = _gateMotor.isOpening();
 
-  if (currSense == HIGH)
+  if (_toolSense == HIGH)
   {
     if (!_tool.tool_state) {
       _tool.report_on(_mqttClient);
