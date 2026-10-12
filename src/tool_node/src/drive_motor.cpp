@@ -141,7 +141,7 @@ void DriveMotor::driveOpen(){
     digitalWrite(_pinB, 0);
     digitalWrite(_sel0, 1);
 
-    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, -32767) );
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
     ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
 }
 
@@ -150,7 +150,7 @@ void DriveMotor::driveClose(){
     digitalWrite(_pinB, 1);
     digitalWrite(_sel0, 0);
 
-    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 32767) );
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
     ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
 }
 
@@ -195,7 +195,9 @@ void DriveMotor::wake(){
     pinMode(_sel0, OUTPUT);
 
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0) );
+    ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand) );
+    ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
 
     digitalWrite(_sel0, 0);
     delayMicroseconds(20);
