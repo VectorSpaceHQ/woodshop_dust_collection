@@ -93,6 +93,7 @@ void DriveMotor::consider_close(int duration, int initialDelay)
     if ((this->getState() == 0 && _isMoving) && ((long)(millis() - _closeStartedAtMs) >= (long)MAX_CONTINUOUS_CLOSE_MS))
     {
         Serial.println("Close command hit 45 second limit, stopping gate");
+        _fullyClosed = true;
         this->stop();
         return;
     }
@@ -129,7 +130,8 @@ void DriveMotor::consider_close(int duration, int initialDelay)
     }
     else
     {
-        // duration has elapsed, stop the motor
+        // duration has elapsed: travel is complete, so don't restart the close
+        _fullyClosed = true;
         this->stop();
     }
 }
@@ -167,6 +169,7 @@ void DriveMotor::consider_open(int duration, int initialDelay)
     if ((this->getState() == 1 && _isMoving) && ((long)(millis() - _openStartedAtMs) >= (long)MAX_CONTINUOUS_OPEN_MS))
     {
         Serial.println("Open command hit 45 second limit, stopping gate");
+        _fullyOpen = true;
         this->stop();
         return;
     }
@@ -194,6 +197,8 @@ void DriveMotor::consider_open(int duration, int initialDelay)
     }
     else
     {
+        // duration has elapsed: travel is complete, so don't restart the open
+        _fullyOpen = true;
         this->stop();
     }
 }
