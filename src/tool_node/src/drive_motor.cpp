@@ -56,6 +56,8 @@ void DriveMotor::close(int duration, int initialDelay){
         return;
     }
     if (_state != CLOSE_PENDING && _state != CLOSING) {
+        // cut power so an in-progress open doesn't keep driving during the delay
+        this->coast();
         _start_time = millis() / 1000;
         _state = CLOSE_PENDING;
     }
