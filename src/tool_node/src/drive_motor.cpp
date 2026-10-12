@@ -75,21 +75,17 @@ void DriveMotor::close(int duration, int initialDelay){
     if (activeMotionTime < duration) {
         // Apply closing signal for duration seconds.
         Serial.println("Closing gate");
-        digitalWrite(_pinA, 0);
-        digitalWrite(_pinB, 1);
-        digitalWrite(_sel0, 0);
+        this->driveClose();
 
-        ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 32767) );
-        ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
-        
         // protect against stall condition
         int current = analogRead(_sensePin);
         if (current >= _stallADC) {
             if (_stallStartMs == 0) {
                 _stallStartMs = millis();
             } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
-                Serial.println("Stall detected during close, stopping motor");
-                this->open(0.5);
+                Serial.println("Stall detected during close, backing off");
+                this->driveOpen();
+                delay(_stallBackoffMs);
                 this->finish(CLOSED);
                 return;
             }
@@ -117,12 +113,7 @@ void DriveMotor::open(int duration){
     int timeSinceCalled = (millis() / 1000) - _start_time;
 
     if (timeSinceCalled < duration) {
-        digitalWrite(_pinA, 1);
-        digitalWrite(_pinB, 0);
-        digitalWrite(_sel0, 1);
-
-        ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, -32767) );
-        ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
+        this->driveOpen();
 
         int current = analogRead(_sensePin);
         if (current >= _stallADC) {
@@ -143,6 +134,24 @@ void DriveMotor::open(int duration){
         this->finish(OPEN);
     }
 
+}
+
+void DriveMotor::driveOpen(){
+    digitalWrite(_pinA, 1);
+    digitalWrite(_pinB, 0);
+    digitalWrite(_sel0, 1);
+
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, -32767) );
+    ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
+}
+
+void DriveMotor::driveClose(){
+    digitalWrite(_pinA, 0);
+    digitalWrite(_pinB, 1);
+    digitalWrite(_sel0, 0);
+
+    ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 32767) );
+    ESP_ERROR_CHECK( ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel) );
 }
 
 void DriveMotor::stop(){

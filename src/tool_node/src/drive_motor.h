@@ -31,6 +31,8 @@ class DriveMotor{
     enum GateState { STOPPED, OPENING, OPEN, CLOSE_PENDING, CLOSING, CLOSED };
     GateState _state = STOPPED;
     void coast();
+    void driveOpen();
+    void driveClose();
     void finish(GateState endState);
     bool _isSetup;
     ledc_channel_t _pwmChannel;
@@ -47,6 +49,7 @@ class DriveMotor{
     const int _stallADC = 4000;
     unsigned long _stallStartMs = 0;
     const unsigned long _stallTimeoutMs = 500;
+    const unsigned long _stallBackoffMs = 500;
 };
 
 #endif
