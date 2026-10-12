@@ -30,6 +30,7 @@ class DriveMotor{
     bool isOpening();
     int getState();
     void stallProtect();
+    void enforceTravelLimits();
         void stop();
 
 

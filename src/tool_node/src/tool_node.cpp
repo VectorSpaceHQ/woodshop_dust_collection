@@ -40,6 +40,7 @@ void ToolNode::setup() {
 void ToolNode::loop() {
   _led2.heartbeat();
   _gateMotor.stallProtect();
+  _gateMotor.enforceTravelLimits();
 
   int currSense = digitalRead(TOOL_CURR_SENSE_PIN);
   if (currSense != _toolSenseLastReading) {

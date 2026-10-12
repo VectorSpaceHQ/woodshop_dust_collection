@@ -90,14 +90,6 @@ void DriveMotor::consider_close(int duration, int initialDelay)
         return;
     }
 
-    if ((this->getState() == 0 && _isMoving) && ((long)(millis() - _closeStartedAtMs) >= (long)MAX_CONTINUOUS_CLOSE_MS))
-    {
-        Serial.println("Close command hit 45 second limit, stopping gate");
-        _fullyClosed = true;
-        this->stop();
-        return;
-    }
-
     if (_fullyClosed)
     {
         return;
@@ -163,14 +155,6 @@ void DriveMotor::consider_open(int duration, int initialDelay)
     {
         Serial.println("Gate is fully open, not opening further");
         delayMicroseconds(100000);
-        return;
-    }
-
-    if ((this->getState() == 1 && _isMoving) && ((long)(millis() - _openStartedAtMs) >= (long)MAX_CONTINUOUS_OPEN_MS))
-    {
-        Serial.println("Open command hit 45 second limit, stopping gate");
-        _fullyOpen = true;
-        this->stop();
         return;
     }
 
@@ -243,6 +227,24 @@ void DriveMotor::stop()
     digitalWrite(_pinB, 0);
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0));
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
+}
+
+void DriveMotor::enforceTravelLimits()
+{
+    // Runs every loop, so a move is stopped even when nothing is calling
+    // consider_open()/consider_close() (close lockout, last gate open).
+    if ((this->getState() == 1 && _isMoving) && ((long)(millis() - _openStartedAtMs) >= (long)MAX_CONTINUOUS_OPEN_MS))
+    {
+        Serial.println("Open command hit 45 second limit, stopping gate");
+        _fullyOpen = true;
+        this->stop();
+    }
+    else if ((this->getState() == 0 && _isMoving) && ((long)(millis() - _closeStartedAtMs) >= (long)MAX_CONTINUOUS_CLOSE_MS))
+    {
+        Serial.println("Close command hit 45 second limit, stopping gate");
+        _fullyClosed = true;
+        this->stop();
+    }
 }
 
 void DriveMotor::stallProtect()
