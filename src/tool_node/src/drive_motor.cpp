@@ -320,7 +320,9 @@ void DriveMotor::wake()
     this->setState(2);
 
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
 
     digitalWrite(_sel0, 0);
     delayMicroseconds(20);
