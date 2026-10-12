@@ -52,27 +52,26 @@ bool DriveMotor::init(int PinA, int PinB,
 }
 
 void DriveMotor::close(int duration, int initialDelay){
-    if (_lastcommand != 0) {
+    if (_state == CLOSED) {
+        return;
+    }
+    if (_state != CLOSE_PENDING && _state != CLOSING) {
         _start_time = millis() / 1000;
-        _time_since_called = 0;
+        _state = CLOSE_PENDING;
     }
-    else {
-        _time_since_called = (millis() / 1000) - _start_time;
-    }
-    _lastcommand = 0;
+    int timeSinceCalled = (millis() / 1000) - _start_time;
 
-    if (_time_since_called < initialDelay) {
+    if (timeSinceCalled < initialDelay) {
         // not yet ready to close
-        _isMoving = false;
         return;
     }
 
-    int activeMotionTime = _time_since_called - initialDelay;
+    _state = CLOSING;
+    int activeMotionTime = timeSinceCalled - initialDelay;
     Serial.println("Closing gate, active motion time: " + String(activeMotionTime) + " seconds");
 
     if (activeMotionTime < duration) {
         // Apply closing signal for duration seconds.
-        _isMoving = true;
         Serial.println("Closing gate");
         digitalWrite(_pinA, 0);
         digitalWrite(_pinB, 1);
@@ -89,7 +88,7 @@ void DriveMotor::close(int duration, int initialDelay){
             } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
                 Serial.println("Stall detected during close, stopping motor");
                 this->open(0.5);
-                this->stop();
+                this->finish(CLOSED);
                 return;
             }
         } else {
@@ -98,26 +97,24 @@ void DriveMotor::close(int duration, int initialDelay){
     }
     else {
         // duration has elapsed, stop the motor
-        this->stop();
+        this->finish(CLOSED);
     }
 }
 
 void DriveMotor::open(int duration){
     // duration in seconds
 
-    if (_lastcommand != 1) {
+    if (_state == OPEN) {
+        return;
+    }
+    if (_state != OPENING) {
         Serial.println("Opening gate");
         _start_time = millis() / 1000;
-        _time_since_called = 0;
+        _state = OPENING;
     }
-    else {
-        _time_since_called = (millis() / 1000) - _start_time;
-    }
-    _lastcommand = 1; // open
+    int timeSinceCalled = (millis() / 1000) - _start_time;
 
-    if (_time_since_called < duration) {
-        _isMoving = true;
-        
+    if (timeSinceCalled < duration) {
         digitalWrite(_pinA, 1);
         digitalWrite(_pinB, 0);
         digitalWrite(_sel0, 1);
@@ -131,8 +128,9 @@ void DriveMotor::open(int duration){
                 //Serial.println("possible stall detected during open, starting stall timer");
                 _stallStartMs = millis();
             } else if ((millis() - _stallStartMs) >= _stallTimeoutMs) {
+                // Hitting the end stop is the normal end of travel.
                 Serial.println("Stall detected during open, stopping motor");
-                this->stop();
+                this->finish(OPEN);
                 return;
             }
         } else {
@@ -140,18 +138,24 @@ void DriveMotor::open(int duration){
         }
     }
     else {
-        this->stop();
+        this->finish(OPEN);
     }
-    
+
 }
 
 void DriveMotor::stop(){
-    _isMoving = false;
-    
-    _stallStartMs = 0;
-    _lastcommand = 2;
+    this->coast();
+    _state = STOPPED;
+}
 
-    // coast
+void DriveMotor::finish(GateState endState){
+    this->coast();
+    _state = endState;
+}
+
+void DriveMotor::coast(){
+    _stallStartMs = 0;
+
     digitalWrite(_pinA, 0);
     digitalWrite(_pinB, 0);
     ESP_ERROR_CHECK( ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0) );
@@ -165,11 +169,11 @@ void DriveMotor::reportCurrent(){
 }
 
 bool DriveMotor::isMoving(){
-    return _isMoving;
+    return _state == OPENING || _state == CLOSING;
 }
 
 bool DriveMotor::isOpening(){
-    return _isMoving && (_lastcommand == 1);
+    return _state == OPENING;
 }
 
 

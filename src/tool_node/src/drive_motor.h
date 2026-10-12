@@ -26,6 +26,12 @@ class DriveMotor{
     bool isMoving();
     bool isOpening();
   private:
+    // OPEN and CLOSED are terminal: repeated open()/close() calls are no-ops
+    // until the other direction (or stop()) is requested.
+    enum GateState { STOPPED, OPENING, OPEN, CLOSE_PENDING, CLOSING, CLOSED };
+    GateState _state = STOPPED;
+    void coast();
+    void finish(GateState endState);
     bool _isSetup;
     ledc_channel_t _pwmChannel;
     ledc_timer_t _timer;
@@ -36,14 +42,11 @@ class DriveMotor{
     int _sensePin;
     int _pinA;
     int _pinB;
-    int _lastcommand = 2; //0 = close, 1 = open, 2 = brake, 3 = coast
     bool _invert;
-    int _time_since_called = 0;
     int _start_time = 0;
     const int _stallADC = 4000;
     unsigned long _stallStartMs = 0;
     const unsigned long _stallTimeoutMs = 500;
-    bool _isMoving = false;
 };
 
 #endif
