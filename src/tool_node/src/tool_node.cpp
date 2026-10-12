@@ -45,18 +45,22 @@ void ToolNode::loop() {
     }
     _gateMotor.open(OPEN_TIME);
   }
-  else if (!_tool.is_last_gate_open())
+  else
   {
-      if (_tool.tool_state) {
-        _tool.report_off(_mqttClient);
+    if (_tool.tool_state) {
+      _tool.report_off(_mqttClient);
+      if (_tool.is_last_gate_open()) {
+        Serial.println("Tool is off, but I'm last, so not closing gate");
       }
+    }
+
+    if (_tool.is_last_gate_open()) {
+      // hold the gate open: finishes an in-progress open, otherwise a no-op
+      _gateMotor.open(OPEN_TIME);
+    } else {
       _gateMotor.close(CLOSE_TIME, GATE_DELAY);
     }
-  else
-    {
-      Serial.println("Tool is off, but I'm last, so not closing gate");
-      _gateMotor.stop();
-    }
+  }
 
   bool isOpening = _gateMotor.isOpening();
   if (!wasOpening && isOpening) {
