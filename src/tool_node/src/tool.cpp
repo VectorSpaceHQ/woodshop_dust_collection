@@ -11,32 +11,32 @@ void Tool::set_pin(int pin){
 
 
 void Tool::report_on(EspMQTTClient &clt){
-    tool_state = true;
+    tool_on = true;
         String tool_state_str = "ON";
 
         message = name + ", " + tool_state_str;
-        if (tool_state != old_tool_state){
-            Serial.println("tool state has changed");
+        if (tool_on != old_tool_state){
+            Serial.println("MQTT tool state has changed to ON");
             clt.publish("tools/dust_collection", message);
-            old_tool_state = tool_state;
+            old_tool_state = tool_on;
         }
     }
     
     void Tool::report_off(EspMQTTClient &clt){
-        tool_state = false;
+        tool_on = false;
         String tool_state_str = "OFF";
 
         message = name + ", " + tool_state_str;
-        if (tool_state != old_tool_state){
-            Serial.println("tool state has changed");
+        if (tool_on != old_tool_state){
+            Serial.println("MQTT tool state has changed to OFF");
             clt.publish("tools/dust_collection", message);
-            old_tool_state = tool_state;
+            old_tool_state = tool_on;
         }
     }
 
     bool Tool::report_state(){
-        Serial.println(tool_state);
-        return tool_state;
+        Serial.println(tool_on);
+        return tool_on;
     }
 
     void Tool::declare_last_gate_open(EspMQTTClient &clt){
@@ -55,10 +55,11 @@ void Tool::report_on(EspMQTTClient &clt){
         String declaringTool = incomingMessage.substring(0, markerIndex);
         if (declaringTool != name) {
             _last_gate_open = false;
+            Serial.println("Another tool (" + declaringTool + ") has declared itself as the last gate open. This tool (" + name + ") is no longer the last gate open.");
         }
     }
 
     bool Tool::is_last_gate_open(){
-        //return _last_gate_open;
-        return false; // testing
+        return _last_gate_open;
+        //return false; // testing
     }

@@ -4,6 +4,10 @@
 #include "Arduino.h"
 #include "driver/ledc.h"
 #include "esp_err.h"
+#include <stdint.h>
+#include <vector>
+#include <numeric>
+
 
 #define DEFAULT_DRIVE_PWM_FREQUENCY 100 //very high frequencies might blow up the RZ7886 driver chip. 5k is def bad, 1k is kinda bad.
 #define DEFAULT_DRIVE_PWM_RESOLUTION LEDC_TIMER_8_BIT
@@ -19,21 +23,18 @@ class DriveMotor{
               int pwm, int sense, bool invert = false);
     void loop(int speed, bool enable = true);
     void wake();
-    void close(int duration, int initialDelay = 0);
-    void open(int duration);
-    void stop();
+    void consider_close(int duration, int initialDelay = 0);
+    void consider_open(int duration, int initialDelay = 0);
     void reportCurrent();
     bool isMoving();
     bool isOpening();
+    int getState();
+    void stallProtect();
+        void stop();
+
+
+    
   private:
-    // OPEN and CLOSED are terminal: repeated open()/close() calls are no-ops
-    // until the other direction (or stop()) is requested.
-    enum GateState { STOPPED, OPENING, OPEN, CLOSE_PENDING, CLOSING, CLOSED };
-    GateState _state = STOPPED;
-    void coast();
-    void driveOpen();
-    void driveClose();
-    void finish(GateState endState);
     bool _isSetup;
     ledc_channel_t _pwmChannel;
     ledc_timer_t _timer;
@@ -44,12 +45,31 @@ class DriveMotor{
     int _sensePin;
     int _pinA;
     int _pinB;
+    int _lastcommand = 4; //0 = close, 1 = open, 2 = brake, 3 = coast
     bool _invert;
+    int _time_since_called = 0;
     int _start_time = 0;
-    const int _stallADC = 4000;
-    unsigned long _stallStartMs = 0;
-    const unsigned long _stallTimeoutMs = 500;
-    const unsigned long _stallBackoffMs = 500;
+
+    static const int STALL_WINDOW_SIZE = 50;
+    const int _stallADC = 4090;
+    static const unsigned long MAX_CONTINUOUS_OPEN_MS = 45UL * 1000UL;
+    static const unsigned long MAX_CONTINUOUS_CLOSE_MS = 45UL * 1000UL;
+    static const unsigned long CLOSE_LOCKOUT_MS = 5UL * 60UL * 1000UL;
+    std::vector<int> _stallSamples;
+    int _stallSampleIndex = 0;
+    int _stallSampleCount = 0;
+    uint64_t _stallSampleSum = 0;
+    bool _isMoving = false;
+    bool _fullyOpen = false;
+    bool _fullyClosed = false;
+    unsigned long _openStartedAtMs = 0;
+    unsigned long _closeStartedAtMs = 0;
+    unsigned long _closeAllowedAfterMs = 0;
+
+    void open();
+    void close();
+    void setState(int state);
+    void resetStallSamples();
 };
 
 #endif

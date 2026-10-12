@@ -20,57 +20,69 @@ void ToolNode::setup() {
   pinMode(VAC_CNTRL_PIN, OUTPUT);
   pinMode(GATE_MOTOR_CURR_SENSE_PIN, INPUT_PULLUP);
 
+  _toolSenseLastReading = digitalRead(TOOL_CURR_SENSE_PIN);
+  _toolSenseStableState = _toolSenseLastReading;
+  _toolSenseLastChangeMs = millis();
+
   startupOK &= _gateMotor.init(D0, D1, LEDC_CHANNEL_2, D7, GATE_MOTOR_CURR_SENSE_PIN, false);
 
   _mqttClient.enableOTA();
 
   _led2.init(LED2_PIN);
   _led1.init(LED1_PIN);
-  _led1.toggle();
+  _led1.off();
   delay(2000); // time for wifi
 
   (void)startupOK;
+
 }
 
 void ToolNode::loop() {
   _led2.heartbeat();
+  _gateMotor.stallProtect();
 
-  // only accept a new tool state once the input has held steady
-  int rawSense = digitalRead(TOOL_CURR_SENSE_PIN);
-  if (rawSense != _rawToolSense) {
-    _rawToolSense = rawSense;
-    _rawToolSenseChangeMs = millis();
-  } else if (millis() - _rawToolSenseChangeMs >= TOOL_DEBOUNCE_MS) {
-    _toolSense = rawSense;
+  int currSense = digitalRead(TOOL_CURR_SENSE_PIN);
+  if (currSense != _toolSenseLastReading) {
+    _toolSenseLastReading = currSense;
+    _toolSenseLastChangeMs = millis();
   }
+
+  if ((millis() - _toolSenseLastChangeMs) >= TOOL_STATE_DEBOUNCE_MS) {
+    _toolSenseStableState = _toolSenseLastReading;
+  }
+
+  currSense = _toolSenseStableState;
   bool wasOpening = _gateMotor.isOpening();
 
-  if (_toolSense == HIGH)
+  if (currSense == HIGH)
   {
-    if (!_tool.tool_state) {
+    if (!_tool.tool_on) {
       _tool.report_on(_mqttClient);
     }
-    _gateMotor.open(OPEN_TIME);
+    _gateMotor.consider_open(OPEN_TIME);
+    
+    
+  }
+  else if (!_tool.is_last_gate_open()) // no current and not last gate open, so close
+  {
+    if (_tool.tool_on) {
+      Serial.println("Tool is off and I'm not last, so closing gate");
+      _tool.report_off(_mqttClient);
+    }
+    _gateMotor.consider_close(CLOSE_TIME, 0);
   }
   else
   {
-    if (_tool.tool_state) {
+    if (_tool.tool_on) {
+      Serial.println("Tool is off, but I'm last, so not closing gate");
       _tool.report_off(_mqttClient);
-      if (_tool.is_last_gate_open()) {
-        Serial.println("Tool is off, but I'm last, so not closing gate");
-      }
     }
-
-    if (_tool.is_last_gate_open()) {
-      // hold the gate open: finishes an in-progress open, otherwise a no-op
-      _gateMotor.open(OPEN_TIME);
-    } else {
-      _gateMotor.close(CLOSE_TIME, GATE_DELAY);
-    }
+    //_gateMotor.stop();
   }
 
   bool isOpening = _gateMotor.isOpening();
   if (!wasOpening && isOpening) {
+    // when current is sensed, declare this tool as the last gate open
     _tool.declare_last_gate_open(_mqttClient);
   }
 
@@ -87,7 +99,7 @@ void ToolNode::onStatusMessageReceived(const String& message) {
   }
 
   String msg;
-  if (_tool.tool_state == true){
+  if (_tool.tool_on == true){
     msg = _tool.name + ", Current state: ON";
   }
   else{
