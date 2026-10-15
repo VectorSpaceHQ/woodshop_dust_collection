@@ -35,6 +35,7 @@ class ToolNode {
     int _toolSenseLastReading = LOW;
     int _toolSenseStableState = LOW;
     unsigned long _toolSenseLastChangeMs = 0;
+    bool _startupClosing = true; // close the gate once at boot, ignoring tool state
 };
 
 #endif

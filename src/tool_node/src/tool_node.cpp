@@ -42,6 +42,18 @@ void ToolNode::loop() {
   _gateMotor.stallProtect();
   _gateMotor.enforceTravelLimits();
 
+  if (_startupClosing) {
+    // Close the gate once at boot, regardless of tool state. Ends when the
+    // move stops (stall detected or time/45 s limit reached).
+    _gateMotor.consider_close(CLOSE_TIME, 0);
+    if (!_gateMotor.isMoving()) {
+      _startupClosing = false;
+      Serial.println("Startup close finished");
+    }
+    _led1.on();
+    return;
+  }
+
   int currSense = digitalRead(TOOL_CURR_SENSE_PIN);
   if (currSense != _toolSenseLastReading) {
     _toolSenseLastReading = currSense;

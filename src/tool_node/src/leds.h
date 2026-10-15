@@ -15,8 +15,8 @@ class LED{
     private:
         int _ledPin;
         int _ledState = LOW;
-        int _blinkCounter = 0;
-        int _heartbeatCounter = 0;
+        static const unsigned long HEARTBEAT_TOGGLE_MS = 500;
+        unsigned long _lastBeatMs = 0;
     };
 
 #endif

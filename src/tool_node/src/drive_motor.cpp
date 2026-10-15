@@ -5,7 +5,7 @@
 DriveMotor::DriveMotor()
 {
     _isSetup = false;
-    _stallSamples.resize(STALL_WINDOW_SIZE, 0);
+    this->resetStallSamples();
 }
 
 // void DriveMotor::loop(int speed, bool enable) {
@@ -92,7 +92,14 @@ void DriveMotor::consider_close(int duration, int initialDelay)
 
     if (_fullyClosed)
     {
-        return;
+        // A close is commanded but we think we're closed (stall/timer ended the
+        // last attempt). Only try again once every CLOSE_RETRY_MS.
+        if ((long)(millis() - _closeStartedAtMs) < (long)CLOSE_RETRY_MS)
+        {
+            return;
+        }
+        Serial.println("Close retry interval elapsed, attempting close again");
+        _fullyClosed = false;
     }
     if (this->getState() != 0)
     {
@@ -145,8 +152,7 @@ void DriveMotor::close()
     digitalWrite(_pinB, 1);
     digitalWrite(_sel0, 0);
 
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
+    this->setDuty(_maxCommand);
 }
 
 void DriveMotor::consider_open(int duration, int initialDelay)
@@ -206,8 +212,7 @@ void DriveMotor::open()
     digitalWrite(_pinB, 0);
     digitalWrite(_sel0, 1);
 
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, _maxCommand));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
+    this->setDuty(_maxCommand);
 }
 
 void DriveMotor::stop()
@@ -225,7 +230,13 @@ void DriveMotor::stop()
     // coast
     digitalWrite(_pinA, 0);
     digitalWrite(_pinB, 0);
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, 0));
+    this->setDuty(0);
+}
+
+void DriveMotor::setDuty(int duty)
+{
+    _currentDuty = duty;
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, _pwmChannel, duty));
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, _pwmChannel));
 }
 
@@ -233,6 +244,19 @@ void DriveMotor::enforceTravelLimits()
 {
     // Runs every loop, so a move is stopped even when nothing is calling
     // consider_open()/consider_close() (close lockout, last gate open).
+
+    // Breakaway -> run: after BREAKAWAY_MS drop to RUN_DUTY_PERCENT so the torque
+    // at the end stop is about 1/1.2 of the starting torque.
+    if (_isMoving && _currentDuty == _maxCommand)
+    {
+        unsigned long startedAt = (this->getState() == 1) ? _openStartedAtMs : _closeStartedAtMs;
+        if ((millis() - startedAt) >= BREAKAWAY_MS)
+        {
+            this->setDuty((_maxCommand * RUN_DUTY_PERCENT) / 100);
+            Serial.println("Breakaway done, running at " + String(RUN_DUTY_PERCENT) + "% duty");
+        }
+    }
+
     if ((this->getState() == 1 && _isMoving) && ((long)(millis() - _openStartedAtMs) >= (long)MAX_CONTINUOUS_OPEN_MS))
     {
         Serial.println("Open command hit 45 second limit, stopping gate");
@@ -249,24 +273,45 @@ void DriveMotor::enforceTravelLimits()
 
 void DriveMotor::stallProtect()
 {
-    int current = analogRead(_sensePin);
-
-    _stallSamples.push_back(current);
-    if (_stallSamples.size() > STALL_WINDOW_SIZE) {
-        _stallSamples.erase(_stallSamples.begin());
-    }
-    _stallSampleSum = std::accumulate(_stallSamples.begin(), _stallSamples.end(), 0);
-     
-    if (!_isMoving || _stallSamples.size() < STALL_WINDOW_SIZE)
+    if (!_isMoving)
     {
         return;
     }
 
-    int avgCurrent = _stallSampleSum / _stallSamples.size();
+    unsigned long now = millis();
 
-    if (avgCurrent > _stallADC)
+    // Start-up blanking: motor inrush reads full scale for the first few ms of
+    // every move. Take no samples until it has passed.
+    unsigned long startedAt = (_lastcommand == 1) ? _openStartedAtMs : _closeStartedAtMs;
+    if ((now - startedAt) < STALL_BLANKING_MS)
     {
-        Serial.println("Stall detected by running average: " + String(avgCurrent));
+        return;
+    }
+
+    // Fixed-rate sampling so the window is a fixed amount of time regardless
+    // of how fast loop() happens to be running.
+    if ((now - _lastStallSampleMs) < STALL_SAMPLE_INTERVAL_MS)
+    {
+        return;
+    }
+    _lastStallSampleMs = now;
+
+    uint16_t current = (uint16_t)analogRead(_sensePin);
+
+    // ring buffer + running sum + running count of high samples (O(1), no heap)
+    uint16_t outgoing = _stallSamples[_stallSampleIndex];
+    _stallSampleSum -= outgoing;
+    if (outgoing >= _stallADC) _stallHighCount--;
+    _stallSamples[_stallSampleIndex] = current;
+    _stallSampleSum += current;
+    if (current >= _stallADC) _stallHighCount++;
+    _stallSampleIndex = (_stallSampleIndex + 1) % STALL_WINDOW_SIZE;
+    if (_stallSampleCount < STALL_WINDOW_SIZE) _stallSampleCount++;
+
+    if (_stallHighCount >= STALL_HIGH_COUNT)
+    {
+        Serial.println("Stall/overcurrent detected: " + String(_stallHighCount) +
+                       " of last " + String(_stallSampleCount) + " samples >= " + String(_stallADC));
 
         if (_lastcommand == 0)
         {
@@ -286,6 +331,8 @@ void DriveMotor::resetStallSamples()
     _stallSampleIndex = 0;
     _stallSampleCount = 0;
     _stallSampleSum = 0;
+    _stallHighCount = 0;
+    _lastStallSampleMs = millis();
 
     for (int i = 0; i < STALL_WINDOW_SIZE; i++)
     {
@@ -296,8 +343,19 @@ void DriveMotor::resetStallSamples()
 void DriveMotor::reportCurrent()
 {
     int current = analogRead(_sensePin);
+    int avg = (int)(_stallSampleSum / STALL_WINDOW_SIZE);
     Serial.print("Current: ");
-    Serial.println(current);
+    Serial.print(current);
+    Serial.print(" avg=");
+    Serial.print(avg);
+    Serial.print(" state=");
+    Serial.print(_lastcommand);
+    Serial.print(" moving=");
+    Serial.print(_isMoving);
+    Serial.print(" fullyOpen=");
+    Serial.print(_fullyOpen);
+    Serial.print(" fullyClosed=");
+    Serial.println(_fullyClosed);
 }
 
 bool DriveMotor::isMoving()

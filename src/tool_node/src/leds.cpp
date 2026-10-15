@@ -30,9 +30,10 @@ void LED::toggle(){
 }
 
 void LED::heartbeat(){
-    _blinkCounter += 1;
-    if (_blinkCounter >= 5000){
+    // Time-based so the blink rate doesn't depend on how fast loop() runs.
+    unsigned long now = millis();
+    if ((now - _lastBeatMs) >= HEARTBEAT_TOGGLE_MS){
         this->toggle();
-        _blinkCounter = 0;
+        _lastBeatMs = now;
     }
 }

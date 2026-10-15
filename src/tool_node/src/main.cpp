@@ -18,8 +18,8 @@
 #include "EspMQTTClient.h"
 #include "tool_node.h"
 
-//#define TOOL_NAME "blue-bandsaw"
-#define TOOL_NAME "Router Table"
+#define TOOL_NAME "blue-bandsaw"
+//#define TOOL_NAME "Router Table"
 
 EspMQTTClient espclient(
     "VS-2",
